@@ -1,15 +1,12 @@
-use std::{
-    collections::{hash_map, HashMap},
-    str::Chars,
-};
+use std::{collections::HashMap, str::Chars};
 
 use lib::io_utils::{read_example_input_for_day, read_input_for_day};
 
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord)]
 enum CamelCard {
+    J,
     NumberCard(u32),
     T,
-    J,
     Q,
     K,
     A,
@@ -52,12 +49,37 @@ fn group(elems: Chars) -> Vec<Vec<char>> {
         result.push(vec![key; value]);
     }
 
+    result.sort_by_key(|b| std::cmp::Reverse(b.len()));
     result
 }
 
 impl From<&str> for HandType {
     fn from(value: &str) -> Self {
-        let result = group(value.chars());
+        let mut result = group(value.chars());
+        if result.len() == 1 {
+            return HandType::FiveOfKind;
+        }
+
+        let mut jidx = 999;
+        for i in 0..result.len() {
+            if result[i][0] == 'J' {
+                jidx = i;
+                let mut clone = result[i].clone();
+                if i == 0 {
+                    result[1].append(&mut clone);
+                } else {
+                    result[0].append(&mut clone);
+                }
+
+                break;
+            }
+        }
+
+        if jidx != 999 {
+            result.remove(jidx);
+        }
+
+        // println!("{:?}", result);
         match result.len() {
             1 => HandType::FiveOfKind,
             2 => {
@@ -84,7 +106,7 @@ impl From<&str> for HandType {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct HandWithBid(HandType, Vec<CamelCard>, u32);
 
-fn part_one(input: String) -> u32 {
+fn part_two(input: String) -> u32 {
     let mut aa = input
         .lines()
         .map(|line| {
@@ -112,6 +134,20 @@ fn part_one(input: String) -> u32 {
 }
 
 fn main() {
-    println!("Part One solution: {}", part_one(read_input_for_day(7)));
-    // println!("Part Two solution: {}", part_two());
+    let mut test = ["22JJJ", "JJJJJ", "AKQT9"]
+        .into_iter()
+        .map(|el| {
+            HandWithBid(
+                el.into(),
+                el.chars().map(|c| c.into()).collect::<Vec<_>>(),
+                0,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    test.sort();
+
+    println!("{:?}", test);
+
+    println!("Part One solution: {}", part_two(read_input_for_day(7)));
 }
