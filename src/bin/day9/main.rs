@@ -36,6 +36,13 @@ fn predict_next_value(seqs: &[Sequence]) -> i32 {
     })
 }
 
+fn predict_prev_value(seqs: &[Sequence]) -> i32 {
+    seqs.iter().rev().fold(0, |acc, val| {
+        let first = val.first().unwrap();
+        first - acc
+    })
+}
+
 fn main() {
     let result = read_input_for_day(9)
         .lines()
@@ -49,4 +56,25 @@ fn main() {
         .sum::<i32>();
 
     println!("{:?}", result);
+
+    let result = read_input_for_day(9)
+        .lines()
+        .map(|l| {
+            l.split_ascii_whitespace()
+                .map(|v| v.parse::<i32>().unwrap())
+                .collect::<Vec<_>>()
+        })
+        .map(|x| calculate_all_rows(&x))
+        .map(|x| predict_prev_value(&x))
+        .sum::<i32>();
+
+    println!("{:?}", result);
+
+    // let seq = INPUT
+    //     .split_ascii_whitespace()
+    //     .map(|v| v.parse::<i32>().unwrap())
+    //     .collect::<Vec<_>>();
+
+    // let rows = calculate_all_rows(&seq);
+    // println!("{:?}", predict_prev_value(&rows));
 }
