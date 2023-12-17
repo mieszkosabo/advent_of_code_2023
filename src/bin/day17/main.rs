@@ -1,4 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+use std::collections::HashMap;
 
 use lib::io_utils::read_input_for_day;
 
@@ -27,68 +29,7 @@ fn parse_input(input: &str) -> Vec<Vec<u32>> {
         .collect()
 }
 
-fn part_one() {
-    // let input = EXAMPLE;
-    let input = &read_input_for_day(17);
-
-    let grid = parse_input(input);
-
-    let mut dirs = vec![vec![None; grid[0].len()]; grid.len()];
-    let res = minimal_heat_loss_from(
-        &grid,
-        (0, 0),
-        &Direction::Right,
-        0,
-        &mut HashMap::new(),
-        &mut HashSet::new(),
-        &mut dirs,
-    );
-
-    println!("Part one: {}", res);
-
-    let mut new_grid = grid
-        .clone()
-        .iter()
-        .map(|row| row.iter().map(|d| d.to_string()).collect::<Vec<String>>())
-        .collect::<Vec<Vec<String>>>();
-
-    // let mut pos = (0, 0);
-    // while pos != ((grid[0].len() - 1) as i32, (grid.len() - 1) as i32) {
-    //     let (x, y) = pos;
-    //     let dir = dirs[y as usize][x as usize];
-    //     let (x, y) = match dir {
-    //         Direction::Up => (x, y - 1),
-    //         Direction::Down => (x, y + 1),
-    //         Direction::Left => (x - 1, y),
-    //         Direction::Right => (x + 1, y),
-    //     };
-    //     pos = (x, y);
-    //     println!("{:?} {:?}", pos, dir);
-    //     new_grid[y as usize][x as usize] = format!("{}", dir);
-    // }
-
-    println!();
-    for row in dirs {
-        for c in row {
-            if let Some(c) = c {
-                print!("{}", c);
-            } else {
-                print!("0");
-            }
-        }
-        println!();
-    }
-
-    println!();
-    for row in new_grid {
-        for c in row {
-            print!("{}", c);
-        }
-        println!();
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq, Ord, PartialOrd)]
 enum Direction {
     Up,
     Down,
@@ -117,32 +58,41 @@ impl Direction {
             Direction::Right => Direction::Left,
         }
     }
+
+    fn to_idx(&self) -> usize {
+        match self {
+            Direction::Up => 0,
+            Direction::Down => 1,
+            Direction::Left => 2,
+            Direction::Right => 3,
+        }
+    }
 }
 
-fn minimal_heat_loss_from(
-    grid: &Vec<Vec<u32>>,
-    start: (i32, i32),
-    direction: &Direction,
-    steps_in_direction: usize,
-    cache: &mut HashMap<((i32, i32), Direction, usize), u32>,
-    visited: &mut HashSet<((i32, i32), Direction, usize)>,
-    dirs: &mut Vec<Vec<Option<Direction>>>,
-) -> u32 {
-    // println!("{:?} {:?} {:?}", start, direction, steps_in_direction);
-    if start == ((grid[0].len() - 1) as i32, (grid.len() - 1) as i32) {
-        return grid[start.1 as usize][start.0 as usize];
+struct MinHeap<T>(BinaryHeap<Reverse<T>>);
+impl<T: Ord> MinHeap<T> {
+    fn new() -> Self {
+        MinHeap(BinaryHeap::new())
     }
-    if cache.contains_key(&(start, *direction, steps_in_direction)) {
-        return cache[&(start, *direction, steps_in_direction)];
+    fn push(&mut self, item: T) {
+        self.0.push(Reverse(item));
     }
-
-    if visited.contains(&(start, *direction, steps_in_direction)) {
-        return std::u32::MAX;
+    fn pop(&mut self) -> Option<T> {
+        self.0.pop().map(|Reverse(item)| item)
     }
+}
 
-    visited.insert((start, *direction, steps_in_direction));
+type Position = (i32, i32);
 
-    let mut min_heat_loss = std::u32::MAX;
+#[derive(Clone, Copy, Eq, Hash, PartialEq, Ord, PartialOrd)]
+struct Node {
+    position: Position,
+    direction: Direction,
+    remaining_steps: [u32; 4],
+}
+
+fn generate_neighbors(grid: &[Vec<u32>], node: Node) -> Vec<Node> {
+    let mut neighbours: Vec<Node> = Vec::new();
 
     let directions = [
         Direction::Up,
@@ -151,16 +101,12 @@ fn minimal_heat_loss_from(
         Direction::Right,
     ]
     .iter()
-    .filter(|d| **d != direction.opposite())
+    .filter(|d| **d != node.direction.opposite())
     .collect::<Vec<_>>();
 
-    // if start == (0, 0) {
-    //     println!("dirs {:?}", directions);
-    // }
-
-    for new_direction in directions {
-        let (x, y) = start;
-        let (x, y) = match new_direction {
+    for direction in directions {
+        let (x, y) = node.position;
+        let (x, y) = match direction {
             Direction::Up => (x, y - 1),
             Direction::Down => (x, y + 1),
             Direction::Left => (x - 1, y),
@@ -171,48 +117,69 @@ fn minimal_heat_loss_from(
             continue;
         }
 
-        let new_steps_in_direction = if direction == new_direction {
-            steps_in_direction + 1
-        } else {
-            1
-        };
-
-        if new_steps_in_direction > 3 {
+        if node.remaining_steps[direction.to_idx()] == 0 {
             continue;
         }
 
-        let heat_loss = minimal_heat_loss_from(
-            grid,
-            (x, y),
-            new_direction,
-            new_steps_in_direction,
-            cache,
-            visited,
-            dirs,
-        );
+        neighbours.push(Node {
+            position: (x, y),
+            direction: *direction,
+            remaining_steps: {
+                let mut remaining_steps = [3, 3, 3, 3];
+                remaining_steps[direction.to_idx()] = node.remaining_steps[direction.to_idx()];
+                remaining_steps[direction.to_idx()] -= 1;
+                remaining_steps
+            },
+        })
+    }
 
-        // if start == (0, 0) {
-        //     println!("{:?} {:?} {:?}", start, new_direction, heat_loss);
-        // }
+    neighbours
+}
 
-        // if start == (0, 0) {
-        //     println!("loop {:?} {:?}", start, new_direction);
-        // }
-        if heat_loss < min_heat_loss {
-            min_heat_loss = heat_loss;
-            // if start == (0, 0) {
-            //     println!("{:?} {:?} {:?}", start, new_direction, heat_loss);
-            // }
-            dirs[start.1 as usize][start.0 as usize] = Some(*new_direction);
+fn dijkstra(grid: &[Vec<u32>], source: Position, target: Position) -> u32 {
+    let mut costs: HashMap<Node, u32> = HashMap::new();
+    let mut heap: MinHeap<(u32, Node)> = MinHeap::new();
+
+    let initial_node = Node {
+        position: source,
+        direction: Direction::Down,
+        remaining_steps: [3, 3, 3, 3],
+    };
+    heap.push((0, initial_node));
+
+    while let Some((cost, node)) = heap.pop() {
+        if node.position == target {
+            return cost;
+        }
+
+        if cost > *costs.get(&node).unwrap_or(&u32::MAX) {
+            continue;
+        }
+
+        let neighbors = generate_neighbors(grid, node);
+
+        for neighbor in neighbors {
+            let new_cost = cost + grid[neighbor.position.1 as usize][neighbor.position.0 as usize];
+            if new_cost < *costs.get(&neighbor).unwrap_or(&u32::MAX) {
+                costs.insert(neighbor, new_cost);
+                heap.push((new_cost, neighbor));
+            }
         }
     }
 
-    if start == (0, 0) || min_heat_loss == std::u32::MAX {
-        return min_heat_loss;
-    }
+    std::u32::MAX
+}
 
-    let result = min_heat_loss + grid[start.1 as usize][start.0 as usize];
-    cache.insert((start, *direction, steps_in_direction), result);
-    // println!("{} {:?}", result, start);
-    result
+fn part_one() {
+    // let input = EXAMPLE;
+    let input = &read_input_for_day(17);
+    let grid = parse_input(input);
+
+    let result = dijkstra(
+        &grid,
+        (0, 0),
+        ((grid[0].len() - 1) as i32, (grid.len() - 1) as i32),
+    );
+
+    println!("Result: {}", result);
 }
