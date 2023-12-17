@@ -4,22 +4,14 @@ use std::collections::HashMap;
 
 use lib::io_utils::read_input_for_day;
 
-const EXAMPLE: &str = "2413432311323
-3215453535623
-3255245654254
-3446585845452
-4546657867536
-1438598798454
-4457876987766
-3637877979653
-4654967986887
-4564679986453
-1224686865563
-2546548887735
-4322674655533";
+const EXAMPLE: &str = "111111111111
+999999999991
+999999999991
+999999999991
+999999999991";
 
 fn main() {
-    part_one();
+    part_two();
 }
 
 fn parse_input(input: &str) -> Vec<Vec<u32>> {
@@ -89,10 +81,42 @@ struct Node {
     position: Position,
     direction: Direction,
     remaining_steps: [u32; 4],
+    steps_in_current_direction: u32,
 }
+
+const MAX_STEPS: u32 = 10;
 
 fn generate_neighbors(grid: &[Vec<u32>], node: Node) -> Vec<Node> {
     let mut neighbours: Vec<Node> = Vec::new();
+
+    if node.steps_in_current_direction < 4 {
+        let (x, y) = node.position;
+        let (x, y) = match node.direction {
+            Direction::Up => (x, y - 1),
+            Direction::Down => (x, y + 1),
+            Direction::Left => (x - 1, y),
+            Direction::Right => (x + 1, y),
+        };
+
+        if x < 0 || y < 0 || x >= grid[0].len() as i32 || y >= grid.len() as i32 {
+            return neighbours;
+        }
+
+        neighbours.push(Node {
+            position: (x, y),
+            direction: node.direction,
+            remaining_steps: {
+                let mut remaining_steps = [MAX_STEPS; 4];
+                remaining_steps[node.direction.to_idx()] =
+                    node.remaining_steps[node.direction.to_idx()];
+                remaining_steps[node.direction.to_idx()] -= 1;
+                remaining_steps
+            },
+            steps_in_current_direction: node.steps_in_current_direction + 1,
+        });
+
+        return neighbours;
+    }
 
     let directions = [
         Direction::Up,
@@ -125,10 +149,17 @@ fn generate_neighbors(grid: &[Vec<u32>], node: Node) -> Vec<Node> {
             position: (x, y),
             direction: *direction,
             remaining_steps: {
-                let mut remaining_steps = [3, 3, 3, 3];
+                let mut remaining_steps = [MAX_STEPS; 4];
                 remaining_steps[direction.to_idx()] = node.remaining_steps[direction.to_idx()];
                 remaining_steps[direction.to_idx()] -= 1;
                 remaining_steps
+            },
+            steps_in_current_direction: {
+                if node.direction == *direction {
+                    node.steps_in_current_direction + 1
+                } else {
+                    1
+                }
             },
         })
     }
@@ -143,12 +174,20 @@ fn dijkstra(grid: &[Vec<u32>], source: Position, target: Position) -> u32 {
     let initial_node = Node {
         position: source,
         direction: Direction::Down,
-        remaining_steps: [3, 3, 3, 3],
+        remaining_steps: [MAX_STEPS; 4],
+        steps_in_current_direction: 0,
     };
     heap.push((0, initial_node));
+    heap.push((
+        0,
+        Node {
+            direction: Direction::Right,
+            ..initial_node
+        },
+    ));
 
     while let Some((cost, node)) = heap.pop() {
-        if node.position == target {
+        if node.position == target && node.steps_in_current_direction >= 4 {
             return cost;
         }
 
@@ -170,16 +209,13 @@ fn dijkstra(grid: &[Vec<u32>], source: Position, target: Position) -> u32 {
     std::u32::MAX
 }
 
-fn part_one() {
+fn part_two() {
     // let input = EXAMPLE;
     let input = &read_input_for_day(17);
     let grid = parse_input(input);
+    let target = ((grid[0].len() - 1) as i32, (grid.len() - 1) as i32);
 
-    let result = dijkstra(
-        &grid,
-        (0, 0),
-        ((grid[0].len() - 1) as i32, (grid.len() - 1) as i32),
-    );
+    let result = dijkstra(&grid, (0, 0), target);
 
     println!("Result: {}", result);
 }
